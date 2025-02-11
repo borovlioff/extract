@@ -1,0 +1,13 @@
+{
+    "name": "extract",
+    "version": "1.0.0",
+    "description": "Скрипт для экспорта проекта в текстовый формат для ИИ",
+    "scripts": {
+      "install": "npm install"
+    },
+    "dependencies": {
+      "uglify-js": "^3.17.4",
+      "html-minifier": "^5.12.2",
+      "clean-css": "^5.3.1"
+    }
+  }

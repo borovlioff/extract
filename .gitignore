@@ -1,0 +1,8 @@
+# Ignore build artifacts
+node_modules/
+*.min
+
+# Ignore OS and IDE files
+.DS_Store
+*.swp
+*.log
