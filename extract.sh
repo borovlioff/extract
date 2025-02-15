@@ -1,108 +1,101 @@
 #!/bin/bash
 
 # Функция для минификации текста
-minify() {
-    local content="$1"
-    # Удаление комментариев, лишних пробелов, табуляций и переносов строк
-    echo "$content" | sed '/^\s*$/d' | sed 's/#.*$//' | tr -s '[:space:]' ' ' | tr -d '\t'
-}
-
-# Проверка аргументов
-if [ -z "$1" ]; then
-    echo "Usage: extract <project_directory> [<output_directory>]"
-    exit 1
-fi
-
-PROJECT_DIR="$1"
-OUTPUT_DIR="${2:-$(dirname "$PROJECT_DIR")}"
-
-# Проверка существования директории проекта
-if [ ! -d "$PROJECT_DIR" ]; then
-    echo "Error: Project directory does't exist"
-    exit 1
-fi
-
-# Создание выходного файла
-OUTPUT_FILE="$OUTPUT_DIR/$(basename "$PROJECT_DIR").txt"
-
-# Получение списка игнорируемых файлов из .gitignore
-IGNORED_FILES=$(grep -v '^#' "$PROJECT_DIR/.gitignore" 2>/dev/null | grep -v '^$')
-
-# Рекурсивный обход директорий
-find "$PROJECT_DIR" -type f | while read -r file; do
-    # Проверка на соответствие .gitignore
-    if [ -n "$IGNORED_FILES" ]; then
-        skip=false
-        for pattern in $IGNORED_FILES; do
-            if [[ "$file" =~ $pattern ]]; then
-                skip=true
-                break
-            fi
-        done
-        if [ "$skip" = true ]; then
-            continue
-        fi
-    fi
-
-    # Минификация содержимого файла
-    content=$(cat "$file" 2>/dev/null)
-    minified_content=$(minify "$content")
-
-    # Запись в выходной файл
-    echo "$(realpath --relative-to="$PROJECT_DIR" "$file")" >> "$OUTPUT_FILE"
-    echo "$minified_content" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE" # Пустая строка между файлами
-done
-
-echo "Extraction completed. Output saved to $OUTPUT_FILE"#!/bin/bash
-
-# Проверка наличия аргументов
-if [ "$#" -lt 1 ]; then
-    echo "Использование: extract <путь_к_проекту> [путь_для_сохранения]"
-    exit 1
-fi
-
-PROJECT_DIR="$1"
-OUTPUT_DIR="${2:-$(dirname "$PROJECT_DIR")}"
-
-# Функция минификации файла
 minify_file() {
     local file="$1"
     # Удаление комментариев, пробелов, табуляций и переносов строк
     cat "$file" | sed '/^\s*#/d' | tr -d '\t' | tr -s ' ' | tr -d '\n'
 }
 
-# Создание выходного файла
-output_file="${OUTPUT_DIR}/$(basename "$PROJECT_DIR").txt"
-
-echo "" > "$output_file" # Очистка файла перед записью
-
-# Обработка .gitignore
-ignored_patterns=()
-if [ -f "${PROJECT_DIR}/.gitignore" ]; then
-    while IFS= read -r line; do
-        if [[ ! $line =~ ^\s*# && -n $line ]]; then
-            ignored_patterns+=("$line")
-        fi
-    done < "${PROJECT_DIR}/.gitignore"
+# Проверка наличия аргументов
+if [ "$#" -lt 1 ]; then
+    echo "Использование: extract <путь_к_проекту> [--output <директория>] [--ignore паттерн1 паттерн2 ...]"
+    exit 1
 fi
+
+PROJECT_DIR="$1"
+
+# Определяем OUTPUT_DIR (по умолчанию рядом с проектом)
+shift
+while [[ "$1" == "--"* ]]; do
+    case "$1" in
+        --output)
+            shift
+            OUTPUT_DIR="$1"
+            ;;
+        --ignore)
+            shift
+            IGNORE_PATTERNS=()
+            while [[ "$1" != "--"* && -n "$1" ]]; do
+                IGNORE_PATTERNS+=("$1")
+                shift
+            done
+            ;;
+        *)
+            echo "Неизвестный параметр: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+# Если OUTPUT_DIR не указан, используем директорию проекта
+OUTPUT_DIR="${OUTPUT_DIR:-$(dirname "$PROJECT_DIR")}"
+
+# Проверка существования директории проекта
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo "Ошибка: Директория проекта не существует."
+    exit 1
+fi
+
+# Создание выходного файла
+output_file="${OUTPUT_DIR}/$(basename "$PROJECT_DIR").txt.gz"
+
+# Создание выходной директории, если её нет
+mkdir -p "$OUTPUT_DIR" || { echo "Ошибка: Не удалось создать выходную директорию."; exit 1; }
+
+# Функция для проверки соответствия пути игнорируемым паттернам
+is_ignored() {
+    local file="$1"
+    relative_path="${file/#$PROJECT_DIR\//}" # Относительный путь от корня проекта
+
+    for pattern in "${IGNORE_PATTERNS[@]}"; do
+        # Преобразуем паттерн в регулярное выражение
+        regex=$(echo "$pattern" | sed 's/\./\\./g' | sed 's/\*/.*/g' | sed 's/?/./g' | sed 's#/#\\/#g')
+        # Добавляем обработку паттернов, заканчивающихся на /
+        if [[ "$pattern" == */ ]]; then
+            regex="^${regex}.*"
+        fi
+        # Проверяем, соответствует ли относительный путь паттерну
+        if [[ "$relative_path" =~ ^$regex$ ]]; then
+            return 0 # Файл игнорируется
+        fi
+    done
+    return 1 # Файл не игнорируется
+}
+
+# Создаем временный файл для хранения объединенного текста
+temp_file="$(mktemp)"
 
 # Рекурсивный обход директорий
 while IFS= read -r -d '' file; do
-    skip=false
-    for pattern in "${ignored_patterns[@]}"; do
-        if [[ "$file" == ${PROJECT_DIR}/${pattern} || "$file" == ${PROJECT_DIR}/${pattern}* ]]; then
-            skip=true
-            break
-        fi
-    done
-
-    if [ "$skip" = false ]; then
-        relative_path="${file/#$PROJECT_DIR\//}"
-        echo "$relative_path" >> "$output_file"
-        minify_file "$file" >> "$output_file"
-        echo "" >> "$output_file"
+    if is_ignored "$file"; then
+        continue # Пропускаем игнорируемые файлы
     fi
+
+    relative_path="${file/#$PROJECT_DIR\//}"
+    # Запись пути и содержимого файла во временный файл
+    {
+        echo "$relative_path"
+        minify_file "$file"
+        echo ""
+    } >> "$temp_file"
 done < <(find "$PROJECT_DIR" -type f -print0)
 
-echo "Файл сохранён в: $output_file"
+# Сжатие всего содержимого временного файла
+gzip < "$temp_file" > "$output_file"
+
+# Удаляем временный файл
+rm -f "$temp_file"
+
+echo "Сжатый файл сохранён в: $output_file"
