@@ -9,7 +9,7 @@
 Использование через `npx`:
 
 ```bash
-npx extract [папка] [-i "путь1,путь2,..."]
+npx ptot [папка] [-i "путь1,путь2,..."]
 ````
 
 ## Опции
@@ -22,19 +22,19 @@ npx extract [папка] [-i "путь1,путь2,..."]
 Минимизировать файлы из текущей директории:
 
 ```bash
-npx extract
+npx ptot
 ```
 
 С указанием директории:
 
 ```bash
-npx extract ./src
+npx ptot ./src
 ```
 
 Игнорирование директорий `node_modules` и `dist`:
 
 ```bash
-npx extract ./src -i "node_modules,dist"
+npx ptot ./src -i "node_modules,dist"
 ```
 
 ## Поддерживаемые языки
@@ -62,7 +62,7 @@ npx extract ./src -i "node_modules,dist"
 Можно перенаправить в файл:
 
 ```bash
-npx extract ./src > output.txt
+npx ptot ./src > output.txt
 ```
 
 ## Применение
