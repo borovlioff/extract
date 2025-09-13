@@ -1,6 +1,6 @@
 {
     "name": "ptot",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Concatenate and minify files",
     "type": "module",
     "bin": {
